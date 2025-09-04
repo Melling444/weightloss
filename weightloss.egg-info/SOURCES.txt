@@ -1,0 +1,8 @@
+setup.py
+weightloss/__init__.py
+weightloss.egg-info/PKG-INFO
+weightloss.egg-info/SOURCES.txt
+weightloss.egg-info/dependency_links.txt
+weightloss.egg-info/not-zip-safe
+weightloss.egg-info/requires.txt
+weightloss.egg-info/top_level.txt

@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: weightloss
+Version: 0.1.0
+Summary: Weight Loss Tracking and Data Analysis
+Author: John Melling
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: seaborn
+Requires-Dist: plotly
+Requires-Dist: scikit-learn
+Requires-Dist: duckdb
+Requires-Dist: boto3
+Requires-Dist: shiny==1.4.0
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: summary

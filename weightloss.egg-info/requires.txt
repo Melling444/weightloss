@@ -1,0 +1,9 @@
+matplotlib
+numpy
+pandas
+seaborn
+plotly
+scikit-learn
+duckdb
+boto3
+shiny==1.4.0
