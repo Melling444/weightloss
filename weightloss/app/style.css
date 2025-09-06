@@ -1,0 +1,42 @@
+/* .card {
+    background-color: #ac1a1a !important;
+} */
+
+body {
+    background-color: #cc2f2f;
+    color: rgb(0, 0, 0)
+}
+
+.sidebar {
+    background-color: #d4bbbb !important;
+}
+
+.collapse-toggle {
+    color: black !important;
+    border-radius: 100px !important;
+}
+
+h1 {
+    font-weight: 1000;
+    text-align: center;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.app-description {
+    font-size: 18px;
+    text-align: center;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.btn {
+    background-color: #8b0000 ;
+    color: white ;
+}
+
+.modal-body, .modal-footer {
+    background-color: #d4bbbb !important;
+}
+
+.bslib-sidebar-layout {
+    border: none;
+}

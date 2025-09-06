@@ -1,20 +1,34 @@
 import pandas as pd
+import numpy as np
 from shiny import App, ui, render, reactive
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import matplotlib.image as mpimg
 import duckdb as db
 from weightloss.helper.db_update import add_log, fetch_logs, delete_log, edit_log
 from weightloss.helper.init_duckdb import create_db, restart_db, remove_db
+import google.generativeai as genai
 import importlib.resources as ir
+from dotenv import load_dotenv
+import os
 
 weightloss_root = ir.files("weightloss")
+API_path = weightloss_root.joinpath('app', '.env')
+load_dotenv(dotenv_path=API_path)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash",)
+css_path = weightloss_root.joinpath("app", "style.css")
+runner_image = mpimg.imread(weightloss_root.joinpath("content", "man_running.png"))
+background_image = mpimg.imread(weightloss_root.joinpath("content", "background.png"))
 
 # con = db.connect(weightloss_root.joinpath('data', 'weightloss.db'))
 
 # con.close()
 
 app_ui = ui.page_fluid(
+    ui.include_css(css_path),
     ui.h1("Weight Loss App"),
-    ui.p("This is a simple Shiny app for weight loss tracking and data analysis."),
+    ui.p("This is a simple Shiny app for weight loss tracking and data analysis.", class_="app-description"),
     ui.page_fillable(
         ui.layout_sidebar(
             ui.sidebar(
@@ -27,6 +41,10 @@ app_ui = ui.page_fluid(
                 ui.input_action_button("edit_log_btn", "Edit Entry"),
                 ui.input_action_button("delete_log_btn", "Delete Today's Entry"),
                 ui.input_action_button("restart_db_btn", "Restart Database"),
+            ),
+            ui.card(
+                ui.h3("AI Suggestions"),
+                ui.chat_ui(id="ai_chat", messages = ["**Hello!** I can provide weight loss tips and suggestions. Ask me anything!"]),
             ),
             ui.card(
                 ui.h3("Weight Log Entries"),
@@ -103,21 +121,69 @@ def server(input, output, session):
     @output
     @render.data_frame
     def log_table():
-        return logs()
+        df = logs()
+        df = df.head(8)
+        df['date'] = pd.to_datetime(df['date']).dt.date
+        return render.DataGrid(df, height='150px')
+    
+    def get_marker_image(path, zoom=0.1):
+        return OffsetImage(path, zoom=zoom)
 
     @output
     @render.plot
     def weight_plot():
         df = logs()
+        # Ensure that we have a max of 8 points to plot
+        df = df.head(8)
         if df.empty:
             return
         fig, ax = plt.subplots()
-        ax.plot(df['date'], df['weight'], marker='o')
+
+        x_min, x_max = df['date'].min(), df['date'].max()
+        y_min, y_max = df['weight'].min(), df['weight'].max()
+
+        x_range = (x_max - x_min)
+        if pd.isna(x_range) or x_range == pd.Timedelta(0):
+            # single timestamp → pad ±1 day
+            x_margin = pd.Timedelta(days=1)
+        else:
+            x_margin = max(pd.Timedelta(seconds=x_range.total_seconds() * 0.05),
+                        pd.Timedelta(hours=12))  # minimum half-day pad
+
+        y_range = (y_max - y_min)
+        if not np.isfinite(y_range) or y_range == 0:
+            # flat value → pad ±max(1 lb, 5% of abs level)
+            y_margin = max(1.0, abs(y_max) * 0.05 if np.isfinite(y_max) else 1.0)
+        else:
+            y_margin = max(y_range * 0.10, 1.0)  # at least 1 lb
+
+        ax.imshow(
+            background_image,
+            aspect='auto',
+            extent=[x_min - x_margin, x_max + x_margin,
+                    y_min - y_margin, y_max + y_margin],
+            zorder=0
+    )
+
+        ax.plot(df['date'], df['weight'], linestyle='-', color='red')
+
+        imagebox = get_marker_image(runner_image, zoom=0.04)
+        for(x, y) in zip(df['date'], df['weight']):
+            ab = AnnotationBbox(imagebox, (x, y), frameon=False)
+            ax.add_artist(ab)
+        ax.set_xlim(x_min - x_margin, x_max + x_margin)
+        ax.set_ylim(y_min - y_margin, y_max + y_margin)   
         ax.set_xlabel('Date')
         ax.set_xticks(ticks=ax.get_xticks(), labels=ax.get_xticklabels(), rotation=45)
         ax.set_ylabel('Weight (lbs)')
-        ax.set_title('Weight Over Time')
-        ax.grid(True)
+        ax.grid(True, color='white', linestyle='--',)
         return fig
+    
+    chat = ui.Chat(id = "ai_chat")
+    @chat.on_user_submit
+    async def handle_user_input(user_input: str):
+        prompt = f"You are a helpful AI assistant trained to provide weight loss tips and health suggestions. Answer the user's question: {user_input}"
+        response = model.generate_content(prompt, stream=True)
+        await chat.append_message_stream(response)    
 
 app = App(app_ui, server)
