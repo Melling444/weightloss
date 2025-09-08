@@ -7,6 +7,7 @@ import matplotlib.image as mpimg
 import duckdb as db
 from weightloss.helper.db_update import add_log, fetch_logs, delete_log, edit_log
 from weightloss.helper.init_duckdb import create_db, restart_db, remove_db
+from weightloss.helper.profile import create_profile, fetch_profile, edit_profile
 import google.generativeai as genai
 import importlib.resources as ir
 from dotenv import load_dotenv
@@ -40,6 +41,7 @@ app_ui = ui.page_fluid(
                 ui.input_date("edit_date", "Select Date to Edit", value=pd.Timestamp.now().date()),
                 ui.input_action_button("edit_log_btn", "Edit Entry"),
                 ui.input_action_button("delete_log_btn", "Delete Today's Entry"),
+                ui.input_action_button("profile_btn", "View/Edit Profile"),
                 ui.input_action_button("restart_db_btn", "Restart Database"),
             ),
             ui.card(
@@ -100,7 +102,43 @@ def server(input, output, session):
             ui.input_action_button("confirm_edit_btn", "Confirm Edit"),
         )
         ui.modal_show(m)
+
+    # View/Edit Profile
+    @reactive.Effect
+    @reactive.event(input.profile_btn)
+    def _():
+        profile = fetch_profile()
+        if not profile.empty:
+            current = profile.iloc[0]
+            ui.update_text("profile_name", value=current['name'])
+            ui.update_numeric("profile_age", value=current['age'])
+            ui.update_numeric("profile_height", value=current['height'])
+            ui.update_numeric("profile_goal_weight", value=current['goal_weight'])
+        else:
+            current = {'name': '', 'age': 0, 'height': 0.0, 'goal_weight': 0.0}
+        m = ui.modal(
+            ui.h3("View/Edit Profile"),
+            ui.input_text("profile_name", "Name", value=str(current['name'])),
+            ui.input_numeric("profile_age", "Age", value=int(current['age']), min=0),
+            ui.input_numeric("profile_height", "Height (inches)", value=float(current['height']), min=0),
+            ui.input_numeric("profile_goal_weight", "Goal Weight (lbs)", value=float(current['goal_weight']), min=0),
+            ui.input_action_button("confirm_profile_btn", "Save Profile"),
+        )
+        ui.modal_show(m)
     
+    #Confirm Profile Edit
+    @reactive.Effect
+    @reactive.event(input.confirm_profile_btn)
+    def _():
+        if fetch_profile().empty:
+            create_profile(name=input.profile_name(), age=input.profile_age(),
+                           height=input.profile_height(), goal_weight=input.profile_goal_weight())
+        else:
+            edit_profile(name=input.profile_name(), age=input.profile_age(),
+                          height=input.profile_height(), goal_weight=input.profile_goal_weight())
+        ui.modal_remove()
+        _refresh()
+
     @reactive.Effect
     @reactive.event(input.confirm_edit_btn)
     def _():
