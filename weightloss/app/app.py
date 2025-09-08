@@ -25,6 +25,8 @@ background_image = mpimg.imread(weightloss_root.joinpath("content", "background.
 # con = db.connect(weightloss_root.joinpath('data', 'weightloss.db'))
 
 # con.close()
+#TODO: #1 Add metrics for BMR, TDEE?, BMI?
+#TODO: #2 Add weight goal tracking/prediction based on trends of workout time, weightloss over time, etc.
 
 app_ui = ui.page_fluid(
     ui.include_css(css_path),
