@@ -1,0 +1,12 @@
+{
+    "https://api.shinyapps.io": {
+        "server_url": "https://api.shinyapps.io",
+        "filename": "C:\\Users\\johnj\\documents\\projects\\weightloss",
+        "app_url": "https://melling444.shinyapps.io/weightloss-app-v3/",
+        "app_id": "15397012",
+        "app_guid": null,
+        "title": "weightloss-app-v3",
+        "app_mode": "python-shiny",
+        "app_store_version": 1
+    }
+}

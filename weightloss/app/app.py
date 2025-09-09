@@ -242,7 +242,7 @@ def server(input, output, session):
             ax.add_artist(AnnotationBbox(
                 goal_box,
                 (x_max, goal_weight),           # anchor at last x
-                xybox=(10, 0),                  # shift right by 20 screen px
+                xybox=(20, 0),                  # shift right by 20 screen px
                 xycoords='data',
                 boxcoords='offset points',
                 frameon=False,
