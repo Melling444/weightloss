@@ -1,0 +1,8 @@
+shiny>=0.8.0
+numpy>=1.26
+pandas>=2.2
+duckdb>=1.1
+matplotlib>=3.8
+python-dotenv>=1.0
+importlib-resources>=6.4
+google-generativeai>=0.7
