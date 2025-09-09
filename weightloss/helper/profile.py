@@ -53,21 +53,23 @@ def fetch_profile():
     return df.astype(object)
 
 def edit_profile(name: str = None, age: int = None, height: float = None, goal_weight: float = None):
-    """Edit the user profile in the DuckDB database."""
+    """Replace the single user profile entry."""
     con = db.connect(weightloss_root.joinpath('data', 'weightloss.db'))
     profile = fetch_profile()
     if profile.empty:
         print("No profile found to edit.")
         return
+
     current = profile.iloc[0]
     name = name if name is not None else current['name']
     age = age if age is not None else current['age']
     height = height if height is not None else current['height']
     goal_weight = goal_weight if goal_weight is not None else current['goal_weight']
+
+    con.execute("DELETE FROM user_profile")
     con.execute("""
-        UPDATE user_profile
-        SET name = ?, age = ?, height = ?, goal_weight = ?
-        WHERE id = ?
-    """, (name, age, height, goal_weight, current['id']))
+        INSERT INTO user_profile (name, age, height, goal_weight)
+        VALUES (?, ?, ?, ?)
+    """, (name, age, height, goal_weight))
     con.close()
-    print(f"Profile updated for {name}")
+    print(f"Profile replaced for {name}")

@@ -1,14 +1,14 @@
-/* .card {
-    background-color: #ac1a1a !important;
-} */
+.card-header {
+    background-color: #ffe0cc !important;
+}
 
 body {
-    background-color: #cc2f2f;
-    color: rgb(0, 0, 0)
+    background-image: linear-gradient(to right, red, yellow);
+    color: rgb(0, 0, 0);
 }
 
 .sidebar {
-    background-color: #d4bbbb !important;
+    background-color: #ffe0cc !important;
 }
 
 .collapse-toggle {
@@ -22,6 +22,11 @@ h1 {
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
+h3 {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+}
+
 .app-description {
     font-size: 18px;
     text-align: center;
@@ -29,7 +34,7 @@ h1 {
 }
 
 .btn {
-    background-color: #8b0000 ;
+    background-color: #cc5500 ;
     color: white ;
 }
 
@@ -39,4 +44,30 @@ h1 {
 
 .bslib-sidebar-layout {
     border: none;
+}
+
+
+/* Right-aligned robot + text stack inside a card */
+.robot-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;   /* image hugs the right edge */
+  gap: 8px;
+}
+
+/* Size the robot image; tweak as you like */
+.robot-stack img {
+  width: 120px;            /* try 96–160px */
+  height: auto;
+}
+
+/* Make the text span full width under the image (not right-aligned) */
+.robot-output {
+  align-self: stretch;     /* full width of the card content */
+}
+
+/* Optional: nicer body text for the AI output */
+.robot-output p, .robot-output {
+  margin: 0;
+  line-height: 1.3;
 }

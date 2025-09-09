@@ -21,6 +21,8 @@ model = genai.GenerativeModel("gemini-1.5-flash",)
 css_path = weightloss_root.joinpath("app", "style.css")
 runner_image = mpimg.imread(weightloss_root.joinpath("content", "man_running.png"))
 background_image = mpimg.imread(weightloss_root.joinpath("content", "background.png"))
+robot_image_path = weightloss_root.joinpath("content", "robot.png")
+goal_image = mpimg.imread(weightloss_root.joinpath("content", "goal.png"))
 
 # con = db.connect(weightloss_root.joinpath('data', 'weightloss.db'))
 
@@ -47,14 +49,24 @@ app_ui = ui.page_fluid(
                 ui.input_action_button("restart_db_btn", "Restart Database"),
             ),
             ui.card(
-                ui.h3("AI Suggestions"),
-                ui.chat_ui(id="ai_chat", messages = ["**Hello!** I can provide weight loss tips and suggestions. Ask me anything!"]),
+                ui.card_header(
+                    ui.h2("AI Coach"),
+                ),
+                ui.div(
+                    ui.div(ui.output_text("ai_output"), class_="robot-output"),
+                    ui.output_image("robot_image", inline=True),
+                    class_="robot-stack",
+                ),
+                class_="ai-card"
             ),
             ui.card(
-                ui.h3("Weight Log Entries"),
+                ui.card_header(
+                    ui.h2("Your Data"),
+                ),
                 ui.output_data_frame("log_table"),
-                ui.h3("Weight Over Time"),
-                ui.output_plot("weight_plot")
+                ui.output_plot("workout_plot"),
+                ui.output_plot("weight_plot"),
+                class_="data-card"
             )
         ),
         )
@@ -168,62 +180,153 @@ def server(input, output, session):
     
     def get_marker_image(path, zoom=0.1):
         return OffsetImage(path, zoom=zoom)
+    
+    @output
+    @render.image
+    def robot_image():
+        return {"src": str(robot_image_path), "width": "auto", "height": "auto"}
 
     @output
     @render.plot
     def weight_plot():
-        df = logs()
-        # Ensure that we have a max of 8 points to plot
-        df = df.head(8)
+        df = logs().head(8)
         if df.empty:
             return
         fig, ax = plt.subplots()
 
+        # ---- compute ranges (include goal if present) ----
         x_min, x_max = df['date'].min(), df['date'].max()
-        y_min, y_max = df['weight'].min(), df['weight'].max()
+        y_min, y_max = float(df['weight'].min()), float(df['weight'].max())
 
+        profile = fetch_profile()
+        goal_weight = None if profile.empty else float(profile.iloc[0]["goal_weight"])
+        if goal_weight is not None and np.isfinite(goal_weight):
+            y_min = min(y_min, goal_weight)
+            y_max = max(y_max, goal_weight)
+
+        # margins
         x_range = (x_max - x_min)
-        if pd.isna(x_range) or x_range == pd.Timedelta(0):
-            # single timestamp → pad ±1 day
-            x_margin = pd.Timedelta(days=1)
-        else:
-            x_margin = max(pd.Timedelta(seconds=x_range.total_seconds() * 0.05),
-                        pd.Timedelta(hours=12))  # minimum half-day pad
-
+        x_margin = (pd.Timedelta(days=1) if (pd.isna(x_range) or x_range == pd.Timedelta(0))
+                    else max(pd.Timedelta(seconds=x_range.total_seconds() * 0.05),
+                            pd.Timedelta(hours=12)))
         y_range = (y_max - y_min)
-        if not np.isfinite(y_range) or y_range == 0:
-            # flat value → pad ±max(1 lb, 5% of abs level)
-            y_margin = max(1.0, abs(y_max) * 0.05 if np.isfinite(y_max) else 1.0)
-        else:
-            y_margin = max(y_range * 0.10, 1.0)  # at least 1 lb
+        y_margin = (max(1.0, abs(y_max) * 0.05) if (not np.isfinite(y_range) or y_range == 0)
+                    else max(y_range * 0.10, 1.0))
 
+        # background
         ax.imshow(
             background_image,
             aspect='auto',
             extent=[x_min - x_margin, x_max + x_margin,
                     y_min - y_margin, y_max + y_margin],
             zorder=0
-    )
+        )
 
-        ax.plot(df['date'], df['weight'], linestyle='-', color='red')
+        # main series
+        ax.plot(df['date'], df['weight'], linestyle='-', color='red', zorder=2)
 
-        imagebox = get_marker_image(runner_image, zoom=0.04)
-        for(x, y) in zip(df['date'], df['weight']):
-            ab = AnnotationBbox(imagebox, (x, y), frameon=False)
-            ax.add_artist(ab)
+        # runner markers
+        runner_box = get_marker_image(runner_image, zoom=0.04)
+        for (x, y) in zip(df['date'], df['weight']):
+            ax.add_artist(AnnotationBbox(runner_box, (x, y),
+                                        frameon=False, zorder=3))
+
+        # ---- GOAL: line + flag icon ----
+        if goal_weight is not None and np.isfinite(goal_weight):
+            # goal line (helps even if image fails)
+            ax.axhline(goal_weight, linestyle='--', linewidth=4,
+                    color='black', alpha=0.6, zorder=1)
+
+            # place the flag at the last date, nudged 20px to the right
+            goal_box = get_marker_image(goal_image, zoom=0.07)
+            ax.add_artist(AnnotationBbox(
+                goal_box,
+                (x_max, goal_weight),           # anchor at last x
+                xybox=(10, 0),                  # shift right by 20 screen px
+                xycoords='data',
+                boxcoords='offset points',
+                frameon=False,
+                box_alignment=(0, 0.5),
+                zorder=5                        # keep it on top
+            ))
+
+        # axes cosmetics
         ax.set_xlim(x_min - x_margin, x_max + x_margin)
-        ax.set_ylim(y_min - y_margin, y_max + y_margin)   
+        ax.set_ylim(y_min - y_margin, y_max + y_margin)
         ax.set_xlabel('Date')
         ax.set_xticks(ticks=ax.get_xticks(), labels=ax.get_xticklabels(), rotation=45)
         ax.set_ylabel('Weight (lbs)')
-        ax.grid(True, color='white', linestyle='--',)
+        ax.set_title('Weight Over Time')
+        ax.grid(True, color='white', linestyle='--', alpha=0.7)
+        ax.set_axisbelow(True)
+
         return fig
     
-    chat = ui.Chat(id = "ai_chat")
-    @chat.on_user_submit
-    async def handle_user_input(user_input: str):
-        prompt = f"You are a helpful AI assistant trained to provide weight loss tips and health suggestions. Answer the user's question: {user_input}"
-        response = model.generate_content(prompt, stream=True)
-        await chat.append_message_stream(response)    
+    @output
+    @render.plot
+    def workout_plot():
+        """Bar chart for exercise minutes over the past 8 entries."""
+        df = logs().head(8)
+        if df.empty:
+            return
+        fig, ax = plt.subplots()
+        ax.bar(df['date'], df['exercise_minutes'], color='blue', alpha=0.7)
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Exercise Minutes')
+        ax.set_title('Exercise Minutes Over Time')
+        ax.set_xticks(ticks=ax.get_xticks(), labels=ax.get_xticklabels(), rotation=45)
+        ax.grid(axis='y', color='gray', linestyle='--', alpha=0.7)
+        return fig
+    
+    @output
+    @render.text
+    def ai_output():
+        #This will agentically output a probability of success based on profile (current weight, goal weight, exercise minutes over time, etc.)
+        try:
+            profile = fetch_profile()
+            if profile.empty:
+                return "Please create a profile to get personalized suggestions."
+            current = profile.iloc[0]
+            df = logs()
+            df_recent = df.head(7)
+            if df.empty:
+                return "Please log some weight entries to get personalized suggestions."
+            slope, intercept = np.polyfit(df.index, df['weight'], 1)
+            slope_recent, intercept_recent = np.polyfit(df_recent.index, df_recent['weight'], 1)
+
+            prompt = f"""Given the following profile and weight log data, give a categorical assessment of the user's likelihood of achieving their weight loss goal based on their current weight trend and exercise habits. Use the slope of the weight trend to determine if they are on track (negative slope), off track (positive slope), or stagnant (near zero slope). Provide actionable suggestions for improvement.
+            Either state they are "On Track", "Off Track", or "Stagnant" and provide 1 short, actionable suggestions for improvement.
+            If they are at or below their goal weight, congratulate them and suggest a short maintenance strategy.
+            Keep this all under 100 words. Start with "Hello {current['name']}!".
+
+            Profile:
+            - Current Weight: {current['weight']}
+            - Goal Weight: {current['goal_weight']}
+            - Exercise Minutes (Last 7 Days): {df['exercise_minutes'].sum()}
+
+            Weight Log:
+            {df.to_string(index=False)}
+
+            Overall Slope: {slope}
+            Recent Slope: {slope_recent}
+            Assume negative slope means weight loss and prioritize the recent slope.
+
+            """
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception:
+            return "Error generating AI Coach response. Please try again later."
+    
+    # Uncomment for Placeholder
+    # @output
+    # @render.text
+    # def ai_output():
+    #     profile = fetch_profile()
+    #     if profile.empty:
+    #         return "Please create a profile to get personalized suggestions."
+    #     current = profile.iloc[0]
+
+    #     return f"""Hello, {current['name']}!
+    #     This is a placeholder text for AI Coach."""
 
 app = App(app_ui, server)
